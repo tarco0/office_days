@@ -44,56 +44,60 @@ def upload_image():
     return render_template('index.html')
 
 def process_calendar(image_path):
-    """Detect icons in the calendar image using edge detection and gray color analysis."""
-    # Load image and convert to grayscale
+    """Detect icons in the calendar image using color masking and edge detection."""
+    # Load the image
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError("Error: Unable to load image. Check file format and upload a valid image.")
-
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
-    # Perform edge detection
-    edges = cv2.Canny(gray, threshold1=50, threshold2=150)
-    cv2.imwrite("edges_debug.jpg", edges)  # Save edge detection result for debugging
+    # Convert image to HSV color space
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    
+    # Define color ranges for gray tones (icons appear grayish)
+    lower_gray = np.array([0, 0, 50])     # Lower bound of gray
+    upper_gray = np.array([180, 50, 200]) # Upper bound of gray
 
-    # Threshold the image to isolate gray tones
-    _, binary_gray = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY_INV)
-    cv2.imwrite("binary_gray_debug.jpg", binary_gray)  # Save thresholded image for debugging
+    # Create a mask for gray colors
+    mask = cv2.inRange(hsv, lower_gray, upper_gray)
+
+    # Apply edge detection on the masked image
+    edges = cv2.Canny(mask, threshold1=30, threshold2=100)
 
     # Find contours in the edge-detected image
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Debug: Draw contours on a copy of the original image
+    debug_image = image.copy()
+    cv2.drawContours(debug_image, contours, -1, (0, 255, 0), 2)
+    cv2.imwrite("debug_contours.jpg", debug_image)  # Save for inspection
 
     # Initialize counts
     office_icon_count = 0
     home_icon_count = 0
 
-    # Analyze contours for approximate icon sizes and shapes
-    for i, contour in enumerate(contours):
+    # Analyze contours
+    for contour in contours:
         area = cv2.contourArea(contour)
         x, y, w, h = cv2.boundingRect(contour)
+        
+        # Adjust area filtering threshold
+        if 50 < area < 10000:  # Loosen lower limit, increase upper limit
+            roi = mask[y:y+h, x:x+w]
+            non_zero_ratio = cv2.countNonZero(roi) / (w * h)
 
-        # Log contour details for debugging
-        print(f"Contour {i}: Area={area}, Bounding Box=({x}, {y}, {w}, {h})")
-
-        # Filter contours by size (adjust as needed)
-        if 100 < area < 5000:
-            roi = binary_gray[y:y+h, x:x+w]
-            
-            # Save ROI for inspection
-            cv2.imwrite(f"roi_debug_{i}.jpg", roi)
-
-            # Check for predominantly gray regions
-            if cv2.countNonZero(roi) > 0.5 * (w * h):
-                if w > h:  # Example heuristic for distinguishing icons
+            # Check if region is gray (high ratio of mask pixels)
+            if non_zero_ratio > 0.5:
+                if w > h:  # Horizontal icons -> Office
                     office_icon_count += 1
-                else:
+                else:      # Vertical icons -> Home
                     home_icon_count += 1
 
-    # Approximate days by scaling counts
-    office_days = office_icon_count
-    home_days = home_icon_count
+    # Debug counts
+    print(f"Office Icons Detected: {office_icon_count}, Home Icons Detected: {home_icon_count}")
 
-    return office_days, home_days
+    # Return counts
+    return office_icon_count, home_icon_count
+
 
 
 if __name__ == '__main__':
