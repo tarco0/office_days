@@ -44,32 +44,34 @@ def upload_image():
     return render_template('index.html')
 
 def process_calendar(image_path):
-    """Detect icons in the calendar image using color masking and edge detection."""
-    # Load the image
+    """Detect icons in the calendar image using edge detection and color filtering."""
+    # Load image
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError("Error: Unable to load image. Check file format and upload a valid image.")
-    
+
     # Convert image to HSV color space
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    
-    # Define color ranges for gray tones (icons appear grayish)
-    lower_gray = np.array([0, 0, 50])     # Lower bound of gray
-    upper_gray = np.array([180, 50, 200]) # Upper bound of gray
 
-    # Create a mask for gray colors
-    mask = cv2.inRange(hsv, lower_gray, upper_gray)
+    # Define color ranges for gray, blue, and any other relevant icons
+    gray_lower = np.array([0, 0, 50])      # Lower bound for gray
+    gray_upper = np.array([180, 50, 200])  # Upper bound for gray
 
-    # Apply edge detection on the masked image
-    edges = cv2.Canny(mask, threshold1=30, threshold2=100)
+    blue_lower = np.array([90, 50, 50])    # Lower bound for blue tones
+    blue_upper = np.array([130, 255, 255]) # Upper bound for blue tones
+
+    # Create masks for gray and blue colors
+    mask_gray = cv2.inRange(hsv, gray_lower, gray_upper)
+    mask_blue = cv2.inRange(hsv, blue_lower, blue_upper)
+
+    # Combine masks
+    combined_mask = cv2.bitwise_or(mask_gray, mask_blue)
+
+    # Perform edge detection on the combined mask
+    edges = cv2.Canny(combined_mask, threshold1=30, threshold2=100)
 
     # Find contours in the edge-detected image
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Debug: Draw contours on a copy of the original image
-    debug_image = image.copy()
-    cv2.drawContours(debug_image, contours, -1, (0, 255, 0), 2)
-    cv2.imwrite("debug_contours.jpg", debug_image)  # Save for inspection
 
     # Initialize counts
     office_icon_count = 0
@@ -78,27 +80,20 @@ def process_calendar(image_path):
     # Analyze contours
     for contour in contours:
         area = cv2.contourArea(contour)
-        x, y, w, h = cv2.boundingRect(contour)
-        
-        # Adjust area filtering threshold
-        if 50 < area < 10000:  # Loosen lower limit, increase upper limit
-            roi = mask[y:y+h, x:x+w]
+        if 50 < area < 10000:  # Adjust area thresholds to detect relevant icons
+            x, y, w, h = cv2.boundingRect(contour)
+            roi = combined_mask[y:y+h, x:x+w]
+            
+            # Check if region is significant
             non_zero_ratio = cv2.countNonZero(roi) / (w * h)
-
-            # Check if region is gray (high ratio of mask pixels)
             if non_zero_ratio > 0.5:
                 if w > h:  # Horizontal icons -> Office
                     office_icon_count += 1
                 else:      # Vertical icons -> Home
                     home_icon_count += 1
 
-    # Debug counts
-    print(f"Office Icons Detected: {office_icon_count}, Home Icons Detected: {home_icon_count}")
-
-    # Return counts
+    # Return the counts
     return office_icon_count, home_icon_count
-
-
 
 if __name__ == '__main__':
     import os
