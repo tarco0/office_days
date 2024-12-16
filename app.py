@@ -56,4 +56,5 @@ def process_calendar(image_path):
     return office_days // 1000, home_days // 1000
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))  # Default to 5000 if PORT not provided
     app.run(debug=True)
