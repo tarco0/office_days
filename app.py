@@ -44,28 +44,44 @@ def upload_image():
     return render_template('index.html')
 
 def process_calendar(image_path):
-    """Detect icons in the calendar image."""
-    office_lower = np.array([50, 50, 200])   # Lower bound for office icon color
-    office_upper = np.array([150, 150, 255]) # Upper bound for office icon color
-
-    home_lower = np.array([200, 50, 50])    # Lower bound for home icon color
-    home_upper = np.array([255, 150, 150])  # Upper bound for home icon color
-
-    # Load image
+    """Detect icons in the calendar image using edge detection and gray color analysis."""
+    # Load image and convert to grayscale
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError("Error: Unable to load image. Check file format and upload a valid image.")
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
-    # Convert image to HSV (optional for better color matching)
-    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    # Perform edge detection
+    edges = cv2.Canny(gray, threshold1=50, threshold2=150)
 
-    # Detect office and home icons using inRange
-    office_mask = cv2.inRange(image, office_lower, office_upper)
-    home_mask = cv2.inRange(image, home_lower, home_upper)
+    # Threshold the image to isolate gray tones
+    _, binary_gray = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY_INV)
 
-    # Count non-zero pixels in masks
-    office_days = cv2.countNonZero(office_mask) // 1000  # Scale factor for approximation
-    home_days = cv2.countNonZero(home_mask) // 1000
+    # Find contours in the edge-detected image
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Initialize counts
+    office_icon_count = 0
+    home_icon_count = 0
+
+    # Analyze contours for approximate icon sizes and shapes
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if 100 < area < 5000:  # Filter contours by size (adjust as needed)
+            x, y, w, h = cv2.boundingRect(contour)
+            roi = binary_gray[y:y+h, x:x+w]
+            
+            # Check for predominantly gray regions
+            if cv2.countNonZero(roi) > 0.5 * (w * h):
+                if w > h:  # Example heuristic for distinguishing icons
+                    office_icon_count += 1
+                else:
+                    home_icon_count += 1
+
+    # Approximate days by scaling counts
+    office_days = office_icon_count // 1  # Adjust scaling factor as needed
+    home_days = home_icon_count // 1
 
     return office_days, home_days
 
