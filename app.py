@@ -54,9 +54,11 @@ def process_calendar(image_path):
     
     # Perform edge detection
     edges = cv2.Canny(gray, threshold1=50, threshold2=150)
+    cv2.imwrite("edges_debug.jpg", edges)  # Save edge detection result for debugging
 
     # Threshold the image to isolate gray tones
     _, binary_gray = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY_INV)
+    cv2.imwrite("binary_gray_debug.jpg", binary_gray)  # Save thresholded image for debugging
 
     # Find contours in the edge-detected image
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -66,12 +68,20 @@ def process_calendar(image_path):
     home_icon_count = 0
 
     # Analyze contours for approximate icon sizes and shapes
-    for contour in contours:
+    for i, contour in enumerate(contours):
         area = cv2.contourArea(contour)
-        if 100 < area < 5000:  # Filter contours by size (adjust as needed)
-            x, y, w, h = cv2.boundingRect(contour)
+        x, y, w, h = cv2.boundingRect(contour)
+
+        # Log contour details for debugging
+        print(f"Contour {i}: Area={area}, Bounding Box=({x}, {y}, {w}, {h})")
+
+        # Filter contours by size (adjust as needed)
+        if 100 < area < 5000:
             roi = binary_gray[y:y+h, x:x+w]
             
+            # Save ROI for inspection
+            cv2.imwrite(f"roi_debug_{i}.jpg", roi)
+
             # Check for predominantly gray regions
             if cv2.countNonZero(roi) > 0.5 * (w * h):
                 if w > h:  # Example heuristic for distinguishing icons
@@ -80,10 +90,11 @@ def process_calendar(image_path):
                     home_icon_count += 1
 
     # Approximate days by scaling counts
-    office_days = office_icon_count // 1  # Adjust scaling factor as needed
-    home_days = home_icon_count // 1
+    office_days = office_icon_count
+    home_days = home_icon_count
 
     return office_days, home_days
+
 
 if __name__ == '__main__':
     import os
