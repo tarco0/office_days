@@ -2,13 +2,70 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Work Days Detector</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 2em;
+        }
+        #output {
+            margin-top: 1em;
+            color: green;
+            font-weight: bold;
+        }
+        #error {
+            margin-top: 1em;
+            color: red;
+            font-weight: bold;
+        }
+        #loading {
+            display: none;
+            font-style: italic;
+        }
+    </style>
+    <script>
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const outputDiv = document.getElementById('output');
+            const errorDiv = document.getElementById('error');
+            const loadingDiv = document.getElementById('loading');
+            
+            outputDiv.textContent = '';
+            errorDiv.textContent = '';
+            loadingDiv.style.display = 'block';
+
+            fetch('/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingDiv.style.display = 'none';
+                if (data.error) {
+                    errorDiv.textContent = `Error: ${data.error}`;
+                } else {
+                    outputDiv.textContent = `Office Days: ${data.office_days}, Home Days: ${data.home_days}`;
+                }
+            })
+            .catch(err => {
+                loadingDiv.style.display = 'none';
+                errorDiv.textContent = 'An unexpected error occurred.';
+            });
+        }
+    </script>
 </head>
 <body>
     <h1>Upload Calendar Image</h1>
-    <form method="POST" enctype="multipart/form-data">
-        <input type="file" name="file" required>
+    <form method="POST" enctype="multipart/form-data" onsubmit="handleFormSubmit(event)">
+        <input type="file" name="file" accept="image/png, image/jpeg" required>
         <button type="submit">Upload</button>
     </form>
+    <p id="loading">Processing... Please wait.</p>
+    <div id="output"></div>
+    <div id="error"></div>
 </body>
 </html>
