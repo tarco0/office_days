@@ -38,28 +38,27 @@ def upload_image():
 
 def process_calendar(image_path):
     """Detect icons in the calendar image."""
-    office_icon_color = [100, 100, 250]  # Approx color for office icon (example)
-    home_icon_color = [250, 100, 100]    # Approx color for home icon (example)
+    office_lower = np.array([50, 50, 200])   # Lower bound for office icon color
+    office_upper = np.array([150, 150, 255]) # Upper bound for office icon color
+
+    home_lower = np.array([200, 50, 50])    # Lower bound for home icon color
+    home_upper = np.array([255, 150, 150])  # Upper bound for home icon color
 
     # Load image
     image = cv2.imread(image_path)
     if image is None:
-        return jsonify({"error": "Invalid image format or corrupted file"}), 400
+        return 0, 0
 
+    # Convert image to HSV (optional for better color matching)
+    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-    office_days = 0
-    home_days = 0
+    # Detect office and home icons using inRange
+    office_mask = cv2.inRange(image, office_lower, office_upper)
+    home_mask = cv2.inRange(image, home_lower, home_upper)
 
-    # Scan image for colors resembling icons
-    for row in image:
-        for pixel in row:
-            if np.allclose(pixel, office_icon_color, atol=50):
-                office_days += 1
-            elif np.allclose(pixel, home_icon_color, atol=50):
-                home_days += 1
+    # Count non-zero pixels in masks
+    office_days = cv2.countNonZero(office_mask) // 1000  # Scale factor for approximation
 
-    # Return counts (divided by an arbitrary factor for approximate days)
-    return office_days // 1000, home_days // 1000
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))  # Default to 5000 if PORT not provided
