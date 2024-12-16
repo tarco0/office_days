@@ -7,6 +7,11 @@ import os
 app = Flask(__name__, static_url_path='/static')
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB upload limit
+
+@app.errorhandler(500)
+def internal_error(error):
+    return f"An unexpected error occurred: {error}", 500
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -39,7 +44,8 @@ def process_calendar(image_path):
     # Load image
     image = cv2.imread(image_path)
     if image is None:
-        return 0, 0
+        return jsonify({"error": "Invalid image format or corrupted file"}), 400
+
 
     office_days = 0
     home_days = 0
@@ -57,4 +63,4 @@ def process_calendar(image_path):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))  # Default to 5000 if PORT not provided
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)
